@@ -1,5 +1,9 @@
 package org.example
 
+
+import edu.ucr.cs.riple.core.Annotator
+import edu.ucr.cs.riple.core.Config
+
 import org.apache.maven.artifact.DependencyResolutionRequiredException
 import org.apache.maven.model.Plugin
 import org.apache.maven.plugin.AbstractMojo
@@ -28,6 +32,10 @@ class AddAnnotationProcessorMojo : AbstractMojo() {
         private val OUT_DIR = Files.createTempDirectory("annotator_temp")
         private val ANNOTATOR_DIR = OUT_DIR.resolve("annotator")
 
+        private val PATHS_TSV = ANNOTATOR_DIR.resolve("paths.tsv")
+
+        private val initializerClass = "com.uber.nullaway.annotations.Initializer"
+
         //        create OUT_DIR/annotator
         init {
             ANNOTATOR_DIR.createDirectory()
@@ -40,6 +48,7 @@ class AddAnnotationProcessorMojo : AbstractMojo() {
 
     @Parameter(defaultValue = "\${project}", readonly = true, required = true)
     private val project: MavenProject? = null
+
 
     @Parameter(defaultValue = "edu.ucr.cs.riple.annotator", required = true)
     private val groupId: String? = null
@@ -55,22 +64,39 @@ class AddAnnotationProcessorMojo : AbstractMojo() {
     @Throws(MojoExecutionException::class)
     override fun execute() {
         try {
-            log.info("Output directory created at: " + OUT_DIR.toAbsolutePath())
+
 
 
             val compilerPlugin = findCompilerPlugin()
             if (compilerPlugin != null) {
                 modifyAnnotationProcessorPath(compilerPlugin)
                 addEditedConfigToCompilerPlugin(compilerPlugin)
-                printModifiedProjectPOM()
+//                printModifiedProjectPOM()
             }
             writePathsToTsv()
+            callAnnotator()
 
 
 //            OUT_DIR.deleteRecursively()
         } catch (e: DependencyResolutionRequiredException) {
             throw MojoExecutionException("Failed to modify annotation processor path", e)
         }
+    }
+
+    private fun callAnnotator() {
+        val mvnCommand = "cd ${project!!.basedir} && mvn compile -DskipTests"
+
+        val buildCommand = listOf(
+            "-d", ANNOTATOR_DIR.toString(),
+            "-cp", PATHS_TSV.toString(),
+            "-i", initializerClass,
+            "--build-command", mvnCommand,
+            "-cn", "NULLAWAY"
+        )
+
+        val config = Config(buildCommand.toTypedArray())
+        val annotator = Annotator(config)
+        annotator.start()
     }
 
     private fun printModifiedProjectPOM() {
@@ -148,7 +174,8 @@ class AddAnnotationProcessorMojo : AbstractMojo() {
             "-XepOpt:AnnotatorScanner:ConfigPath=" + ANNOTATOR_DIR.toAbsolutePath() + "/scanner.xml"
         val nullawayConfigPath =
             "-XepOpt:NullAway:FixSerializationConfigPath=" + ANNOTATOR_DIR.toAbsolutePath() + "/nullaway.xml"
-        return (" $scannerConfigPath $nullawayConfigPath")
+        val nullawaySerializer = "-XepOpt:NullAway:SerializeFixMetadata=true"
+        return (" $scannerConfigPath $nullawayConfigPath $nullawaySerializer")
     }
 
     private fun writePathsToTsv() {
@@ -160,7 +187,7 @@ class AddAnnotationProcessorMojo : AbstractMojo() {
             log.info("nullawayConfigPath: " + nullawayConfigPath.toAbsolutePath())
 
 //            create paths.tsv in AnnotatorDir
-            val pathsTsv = ANNOTATOR_DIR.resolve("paths.tsv").createFile()
+            val pathsTsv = PATHS_TSV.createFile()
             pathsTsv.bufferedWriter().use { writer ->
                 writer.write("$nullawayConfigPath\t$scannerConfigPath")
                 writer.close()
