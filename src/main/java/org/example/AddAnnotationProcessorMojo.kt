@@ -32,7 +32,7 @@ class AddAnnotationProcessorMojo : AbstractMojo() {
         private val OUT_DIR = Files.createTempDirectory("annotator_temp")
         private val ANNOTATOR_DIR = OUT_DIR.resolve("annotator")
 
-        private val PATHS_TSV = "/Users/raghuwork/Desktop/configs/paths.tsv"
+        private val PATHS_TSV = ANNOTATOR_DIR.resolve("paths.tsv")
 
         private val initializerClass = "com.uber.nullaway.annotations.Initializer"
 
@@ -69,8 +69,8 @@ class AddAnnotationProcessorMojo : AbstractMojo() {
 
             val compilerPlugin = findCompilerPlugin()
             if (compilerPlugin != null) {
-//                modifyAnnotationProcessorPath(compilerPlugin)
-//                addEditedConfigToCompilerPlugin(compilerPlugin)
+                modifyAnnotationProcessorPath(compilerPlugin)
+                addEditedConfigToCompilerPlugin(compilerPlugin)
                 printModifiedProjectPOM()
             }
             writePathsToTsv()
@@ -88,11 +88,11 @@ class AddAnnotationProcessorMojo : AbstractMojo() {
 
         val buildCommand = listOf(
             "-d", ANNOTATOR_DIR.toString(),
-//            "-cp", PATHS_TSV.toString(),
-            "-cp", PATHS_TSV,
+            "-cp", PATHS_TSV.toString(),
             "-i", initializerClass,
             "--build-command", mvnCommand,
             "-cn", "NULLAWAY",
+            "-rboserr"
         )
 
         val config = Config(buildCommand.toTypedArray())
@@ -182,34 +182,16 @@ class AddAnnotationProcessorMojo : AbstractMojo() {
         return (" $scannerCheck $scannerConfigPath $nullawayConfigPath $nullawaySerializer")
     }
 
-//    private fun writePathsToTsv() {
-//        try {
-//            val scannerConfigPath = ANNOTATOR_DIR.resolve("scanner.xml")
-//            log.info("scannerConfigPath: " + scannerConfigPath.toAbsolutePath())
-//
-//            val nullawayConfigPath = ANNOTATOR_DIR.resolve("nullaway.xml")
-//            log.info("nullawayConfigPath: " + nullawayConfigPath.toAbsolutePath())
-//
-////            create paths.tsv in AnnotatorDir
-//            val pathsTsv = PATHS_TSV.createFile()
-//            pathsTsv.bufferedWriter().use { writer ->
-//                writer.write("$nullawayConfigPath\t$scannerConfigPath")
-//                writer.close()
-//            }
-//        } catch (e: FileSystemException) {
-//            println("FS Error: $e")
-//        }
-//    }
-
-
-
     private fun writePathsToTsv() {
         try {
-            val scannerConfigPath = "/Users/raghuwork/Desktop/configs/scanner.xml"
-            val nullawayConfigPath ="/Users/raghuwork/Desktop/configs/nullaway.xml"
+            val scannerConfigPath = ANNOTATOR_DIR.resolve("scanner.xml")
+            log.info("scannerConfigPath: " + scannerConfigPath.toAbsolutePath())
+
+            val nullawayConfigPath = ANNOTATOR_DIR.resolve("nullaway.xml")
+            log.info("nullawayConfigPath: " + nullawayConfigPath.toAbsolutePath())
 
 //            create paths.tsv in AnnotatorDir
-            val pathsTsv = Path(PATHS_TSV).createFile()
+            val pathsTsv = PATHS_TSV.createFile()
             pathsTsv.bufferedWriter().use { writer ->
                 writer.write("$nullawayConfigPath\t$scannerConfigPath")
                 writer.close()
